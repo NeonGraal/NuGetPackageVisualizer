@@ -12,6 +12,7 @@ using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using NuGetPackageVisualizer.PackagesFile;
 
 namespace NuGetPackageVisualizer
 {
@@ -144,121 +145,60 @@ namespace NuGetPackageVisualizer
 
             ApplyCredentials(feedContext);
 
-            var packagesConfig = XDocument.Load(file);
+            var packagesFileProcessor = PackageFileFactory.CreateProcessor(file);
             var dependencies = new List<DependencyViewModel>();
 
-            if (Path.GetFileName(file).Equals("packages.config", StringComparison.CurrentCultureIgnoreCase))
+            foreach (var package in packagesFileProcessor.Packages(file))
             {
-                foreach (var package in packagesConfig.Descendants("package"))
-                {
-                    var id = package.Attribute("id").Value;
-                    var version = package.Attribute("version").Value;
-                    // ReSharper disable ReplaceWithSingleCallToFirstOrDefault
-                    var remotePackage =
-                        feedContext
-                            .Packages
-                            .OrderByDescending(x => x.Version)
-                            .Where(x => x.Id == id && x.IsLatestVersion && !x.IsPrerelease)
-                            .FirstOrDefault();
-                    // ReSharper restore ReplaceWithSingleCallToFirstOrDefault
+                // ReSharper disable ReplaceWithSingleCallToFirstOrDefault
+                var remotePackage =
+                    feedContext
+                        .Packages
+                        .OrderByDescending(x => x.Version)
+                        .Where(x => x.Id == package.NugetId && x.IsLatestVersion && !x.IsPrerelease)
+                        .FirstOrDefault();
+                // ReSharper restore ReplaceWithSingleCallToFirstOrDefault
 
-                    dependencies.Add(new DependencyViewModel { NugetId = id, Version = version });
+                dependencies.Add(package);
 
-                    if (remotePackage == null) continue;
+                if (remotePackage == null) continue;
 
-                    if (packages.Any(p => p.NugetId == id && p.LocalVersion == version)) continue;
+                if (packages.Any(p => p.NugetId == package.NugetId && p.LocalVersion == package.Version)) continue;
 
-                    packages.Add(
-                        new PackageViewModel
-                        {
-                            RemoteVersion = remotePackage.Version,
-                            LocalVersion = version,
-                            NugetId = id,
-                            Id = Guid.NewGuid().ToString(),
-                            Dependencies = remotePackage.Dependencies
-                                .Split(new[] { "|" }, StringSplitOptions.RemoveEmptyEntries)
-                                .Select(
-                                    x =>
-                                    {
-                                        var strings = x.Split(new[] { ':' });
-
-                                        return new DependencyViewModel { NugetId = strings[0], Version = strings[1] };
-                                    })
-                                .ToArray()
-                        });
-
-                    foreach (
-                        var pack in
-                        packages
-                            .Last()
-                            .Dependencies
-                            .Select(
-                                dependency =>
-                                    dependencies
-                                        .FirstOrDefault(
-                                            x => x.NugetId == dependency.NugetId && x.Version == dependency.Version))
-                            .Where(pack => pack != null))
+                packages.Add(
+                    new PackageViewModel
                     {
-                        dependencies.Remove(pack);
-                    }
-                }
-            }
-
-            if (Path.GetExtension(file).Equals(".csproj", StringComparison.CurrentCultureIgnoreCase))
-            {
-                //todo process new format CSProj file.  <PackageReference Include="Microsoft.TeamFoundation.DistributedTask.Common" version="15.112.1" />
-                foreach (var package in packagesConfig.Descendants("PackageReference"))
-                {
-                    var id = package.Attribute("Include")?.Value;
-                    var version = package.Attribute("Version")?.Value;
-                    // ReSharper disable ReplaceWithSingleCallToFirstOrDefault
-                    var remotePackage =
-                        feedContext
-                            .Packages
-                            .OrderByDescending(x => x.Version)
-                            .Where(x => x.Id == id && x.IsLatestVersion && !x.IsPrerelease)
-                            .FirstOrDefault();
-                    // ReSharper restore ReplaceWithSingleCallToFirstOrDefault
-
-                    dependencies.Add(new DependencyViewModel { NugetId = id, Version = version });
-
-                    if (remotePackage == null) continue;
-
-                    if (packages.Any(p => p.NugetId == id && p.LocalVersion == version)) continue;
-
-                    packages.Add(
-                        new PackageViewModel
-                        {
-                            RemoteVersion = remotePackage.Version,
-                            LocalVersion = version,
-                            NugetId = id,
-                            Id = Guid.NewGuid().ToString(),
-                            Dependencies = remotePackage.Dependencies
-                                .Split(new[] { "|" }, StringSplitOptions.RemoveEmptyEntries)
-                                .Select(
-                                    x =>
-                                    {
-                                        var strings = x.Split(new[] { ':' });
-
-                                        return new DependencyViewModel { NugetId = strings[0], Version = strings[1] };
-                                    })
-                                .ToArray()
-                        });
-
-                    foreach (
-                        var pack in
-                        packages
-                            .Last()
-                            .Dependencies
+                        RemoteVersion = remotePackage.Version,
+                        LocalVersion = package.Version,
+                        NugetId = package.NugetId,
+                        Id = Guid.NewGuid().ToString(),
+                        Dependencies = remotePackage.Dependencies
+                            .Split(new[] {"|"}, StringSplitOptions.RemoveEmptyEntries)
                             .Select(
-                                dependency =>
-                                    dependencies
-                                        .FirstOrDefault(
-                                            x => x.NugetId == dependency.NugetId && x.Version == dependency.Version))
-                            .Where(pack => pack != null))
-                    {
-                        dependencies.Remove(pack);
-                    }
+                                x =>
+                                {
+                                    var strings = x.Split(new[] {':'});
+
+                                    return strings.Length > 1 
+                                        ? new DependencyViewModel {NugetId = strings[0], Version = strings[1]} 
+                                        : new DependencyViewModel {NugetId = x, Version = "!!ERROR!!"};
+                                })
+                            .ToArray()
+                    });
+
+                foreach (
+                    var pack in
+                    packages
+                        .Last()
+                        .Dependencies
+                        .Select(
+                            dependency =>
+                                dependencies
+                                    .FirstOrDefault(
+                                        x => x.NugetId == dependency.NugetId && x.Version == dependency.Version))
+                        .Where(pack => pack != null))
+                {
+                    dependencies.Remove(pack);
                 }
             }
 
@@ -393,6 +333,7 @@ namespace NuGetPackageVisualizer
                 foreach (var d in Directory.GetDirectories(sDir))
                 {
                     packageFiles.AddRange(Directory.GetFiles(d, "packages.config"));
+                    packageFiles.AddRange(Directory.GetFiles(d, "project.json"));
                     packageFiles.AddRange(Directory.GetFiles(d, "*.csproj"));
                     if (Recursive)
                         packageFiles.AddRange(DirSearch(d));

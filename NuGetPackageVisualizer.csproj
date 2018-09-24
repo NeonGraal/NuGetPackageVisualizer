@@ -43,6 +43,12 @@
     <Reference Include="GoCommando">
       <HintPath>packages\GoCommando.0.3\lib\net35\GoCommando.dll</HintPath>
     </Reference>
+    <Reference Include="JetBrains.Annotations, Version=11.1.0.0, Culture=neutral, PublicKeyToken=1010a0d8d6380325, processorArchitecture=MSIL">
+      <HintPath>packages\JetBrains.Annotations.11.1.0\lib\net20\JetBrains.Annotations.dll</HintPath>
+    </Reference>
+    <Reference Include="Newtonsoft.Json, Version=10.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>packages\Newtonsoft.Json.10.0.2\lib\net40\Newtonsoft.Json.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Data.Services.Client" />
@@ -64,6 +70,12 @@
     <Compile Include="GraphvizWriter.cs" />
     <Compile Include="IColorConfiguration.cs" />
     <Compile Include="IPackageWriter.cs" />
+    <Compile Include="PackagesFile\CsProjProcessor.cs" />
+    <Compile Include="PackagesFile\IPackageFileProcessor.cs" />
+    <Compile Include="PackagesFile\PackageFileFactory.cs" />
+    <Compile Include="PackagesFile\PackagesConfigProcessor.cs" />
+    <Compile Include="PackagesFile\ProjectJsonProcessor.cs" />
+    <Compile Include="PackagesFile\UnknownProcessor.cs" />
     <Compile Include="PackageViewModel.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
